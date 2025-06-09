@@ -2,103 +2,87 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import time
-import socket
-import threading
+from streamlit_autorefresh import st_autorefresh
+import altair as alt
 
-st.set_page_config(layout="wide")
-st.title("VLCP monitor system")
+st.set_page_config(page_title="LAN Device Tracker", layout="wide")
+st.title("📡 LAN Device Tracker with VLC Monitor")
 
-# Simulated data store
-device_list = []
-device_positions = {}
-vlc_messages = {}
-bit_error_rate_log = []
+# Refresh every 5 seconds
+st_autorefresh(interval=5000, key="auto_refresh")
 
-# Mutex for thread-safe updates
-from threading import Lock
-data_lock = Lock()
+# Anchor positions (fixed in 2D space, e.g., corners of a 10x10 room)
+anchors = {
+    "Anchor_1": {"x": 0, "y": 0},
+    "Anchor_2": {"x": 10, "y": 0},
+    "Anchor_3": {"x": 0, "y": 10},
+    "Anchor_4": {"x": 10, "y": 10},
+}
 
-# Simulate LAN scan (replace with actual scan logic in real use)
-def simulate_lan_devices():
-    with data_lock:
-        device_list.clear()
-        for i in range(5):
-            ip = f"192.168.1.{100 + i}"
-            device_list.append(ip)
-            device_positions[ip] = np.random.rand(2) * 10
-            vlc_messages[ip] = f"Init Msg from {ip}"
-            bit_error_rate_log.append((time.time(), np.random.rand() * 0.05))
+# Initialize devices if not already done
+if "devices" not in st.session_state:
+    st.session_state.devices = {
+        f"Device_{i}": {
+            "x": np.random.uniform(2, 8),
+            "y": np.random.uniform(2, 8),
+            "vlc_data": "",
+        }
+        for i in range(1, 6)
+    }
 
-# Simulate real-time update of positions and communication
-def update_device_data():
-    while True:
-        time.sleep(1)
-        with data_lock:
-            for ip in device_list:
-                # Random movement
-                device_positions[ip] += (np.random.rand(2) - 0.5) * 0.5
-                device_positions[ip] = np.clip(device_positions[ip], 0, 10)
-
-                # Update VLC message
-                vlc_messages[ip] = f"VLC Msg from {ip} at {time.strftime('%H:%M:%S')}"
-
-                # Update BER
-                ber = np.random.rand() * 0.05
-                bit_error_rate_log.append((time.time(), ber))
-                if len(bit_error_rate_log) > 100:
-                    bit_error_rate_log.pop(0)
-
-# Start background simulation thread
-threading.Thread(target=update_device_data, daemon=True).start()
-simulate_lan_devices()
+# Sidebar: Device List
+st.sidebar.header("📋 Devices on LAN")
+for device_name in st.session_state.devices:
+    st.sidebar.write(f"✅ {device_name}")
 
 # Layout
-col1, col2 = st.columns([1, 2])
-col3, col4 = st.columns([1, 1])
+col1, col2 = st.columns([2, 1])
 
-# Display device list
 with col1:
-    st.subheader("Devices on LAN")
-    with data_lock:
-        for ip in device_list:
-            st.text(ip)
+    st.subheader("📍 Device Positions (2D Space in Meters)")
 
-# Scatter plot
+    # Simulate position change
+    for device in st.session_state.devices.values():
+        device["x"] = np.clip(device["x"] + np.random.uniform(-0.1, 0.1), 0, 10)
+        device["y"] = np.clip(device["y"] + np.random.uniform(-0.1, 0.1), 0, 10)
+
+    # Prepare data
+    device_data = pd.DataFrame([
+        {"Name": name, "x": info["x"], "y": info["y"], "Type": "Device"}
+        for name, info in st.session_state.devices.items()
+    ])
+    anchor_data = pd.DataFrame([
+        {"Name": name, "x": info["x"], "y": info["y"], "Type": "Anchor"}
+        for name, info in anchors.items()
+    ])
+    combined_data = pd.concat([device_data, anchor_data])
+
+    # Plot
+    chart = alt.Chart(combined_data).mark_circle(size=200).encode(
+        x=alt.X("x", scale=alt.Scale(domain=[0, 10]), title="X (meters)"),
+        y=alt.Y("y", scale=alt.Scale(domain=[0, 10]), title="Y (meters)"),
+        color=alt.Color("Type", scale=alt.Scale(domain=["Device", "Anchor"], range=["steelblue", "orange"])),
+        tooltip=["Name", "x", "y"]
+    ).properties(width=600, height=600)
+    st.altair_chart(chart, use_container_width=True)
+
+    # Coordinates Table
+    st.markdown("### 📊 Device Coordinates")
+    st.dataframe(device_data[["Name", "x", "y"]].set_index("Name").round(2))
+
 with col2:
-    st.subheader("Device Positions")
-    placeholder = st.empty()
+    st.subheader("💡 VLC Communication Window")
 
-# VLC message box
-with col3:
-    st.subheader("VLC Communication Log")
-    vlc_text = st.empty()
+    messages = []
+    for name, info in st.session_state.devices.items():
+        if np.random.rand() < 0.2:
+            message = f"{name}: Hello via VLC at {time.strftime('%H:%M:%S')}"
+            info["vlc_data"] = message
+        if info["vlc_data"]:
+            messages.append(info["vlc_data"])
 
-# BER line graph
-with col4:
-    st.subheader("Bit Error Rate (BER)")
-    ber_chart = st.empty()
-
-# Real-time updating loop
-while True:
-    time.sleep(1)
-    with data_lock:
-        # Update scatter plot
-        df = pd.DataFrame({
-            'x': [pos[0] for pos in device_positions.values()],
-            'y': [pos[1] for pos in device_positions.values()],
-            'ip': list(device_positions.keys())
-        })
-        # fig = px.scatter(df, x='x', y='y', text='ip', range_x=[0, 10], range_y=[0, 10], title="Device Positions")
-        # fig.update_traces(textposition='top center')
-        placeholder.write(df, use_container_width=True)
-
-        # Update VLC text
-        text_log = "\n".join([f"{ip}: {msg}" for ip, msg in vlc_messages.items()])
-        vlc_text.text_area("VLC Data", text_log, height=300)
-
-        # Update BER line graph
-        times, bers = zip(*bit_error_rate_log) if bit_error_rate_log else ([], [])
-        ber_df = pd.DataFrame({'Time': times, 'BER': bers})
-        ber_chart.line_chart(ber_df.set_index('Time'))
-
+    if messages:
+        st.text_area("Received VLC Messages", value="\n".join(messages), height=300)
+    else:
+        st.info("No VLC messages received yet.")
 

@@ -77,20 +77,14 @@ with col1:
 
 with col2:
     st.subheader("💡 VLC Communication Window")
+    # Manual clear button
+    if st.button("🧹 Clear All VLC Messages"):
+        r.delete("vlc:messages")
+        st.success("Cleared VLC messages")
 
-    messages = []
-    for name in devices:
-        # Simulate VLC message
-        if np.random.rand() < 0.2:
-            message = f"{name}: Hello via VLC at {pd.Timestamp.now().strftime('%H:%M:%S')}"
-            st.session_state[f"vlc:{name}"] = message
-
-        msg = st.session_state[f"vlc:{name}"]
-        if msg:
-            messages.append(msg)
-
-    if messages:
-        st.text_area("Received VLC Messages", value="\n".join(messages), height=300)
+    # Read messages (latest first)
+    vlc_messages = r.lrange("vlc:messages", 0, 100)
+    if vlc_messages:
+        st.text_area("📥 Received VLC Messages", value="\n".join(vlc_messages), height=300)
     else:
-        st.info("No VLC messages received yet.")
-
+        st.info("No VLC messages yet.")

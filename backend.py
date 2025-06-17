@@ -1,12 +1,50 @@
 # backend.py
-from fastapi import FastAPI
 from pydantic import BaseModel
 import redis
 import json
 from typing import List
 from fastapi import Request
 
+from fastapi import FastAPI, UploadFile, Form, File
+from fastapi.responses import JSONResponse
+import aiofiles
+import os
+import time
+import asyncio
+from typing import Dict
+
 app = FastAPI()
+DATA_DIR = "adc_data"
+os.makedirs(DATA_DIR, exist_ok=True)
+
+# Per-device lock dictionary
+device_locks: Dict[str, asyncio.Lock] = {}
+
+def get_device_lock(device_id: str) -> asyncio.Lock:
+    if device_id not in device_locks:
+        device_locks[device_id] = asyncio.Lock()
+    return device_locks[device_id]
+
+@app.post("/stream_adc")
+async def stream_adc(device_id: str = Form(...), chunk: UploadFile = File(...)):
+    if not device_id or not chunk:
+        return JSONResponse(status_code=400, content={"message": "Missing device_id or file chunk"})
+
+    filename = os.path.join(DATA_DIR, f"adc_{device_id}.bin")
+    lock = get_device_lock(device_id)
+
+    try:
+        async with lock:
+            async with aiofiles.open(filename, "ab") as f:
+                while True:
+                    content = await chunk.read(4096)
+                    if not content:
+                        break
+                    await f.write(content)
+        return {"message": f"Data written to {filename}"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 
 class DevicePosition(BaseModel):

@@ -13,6 +13,13 @@ This project is a **LAN VLP device monitoring system** with a web-based frontend
 - Manual clear button for VLC logs
 - Clean separation of frontend and backend with REST APIs
 
+## WIP features:
+
+- [] Add a streaming API to store raw adc data to file. Support concurrency write multiple file.
+- [] Show target moving trajectory.
+- [] Use different color to represent different targets.
+- [] Add an interface to set the position of anchors.
+
 ---
 
 ## 🧰 Technology Stack

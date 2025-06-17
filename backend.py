@@ -1,4 +1,6 @@
 # backend.py
+from pathlib import Path
+from fastapi import Query
 from pydantic import BaseModel
 import redis
 import json
@@ -85,3 +87,11 @@ def get_vlc_messages(limit: int = 100) -> List[str]:
 def clear_vlc_messages():
     r.delete(VLC_LIST_KEY)
     return {"message": "All VLC messages cleared"}
+
+@app.delete("/delete_adc_file")
+def delete_adc_file(device_id: str = Query(...)):
+    file_path = Path("adc_data") / f"adc_{device_id}.bin"
+    if file_path.exists():
+        file_path.unlink()
+        return {"message": f"{file_path.name} deleted"}
+    return {"error": "File not found"}

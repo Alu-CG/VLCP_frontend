@@ -120,3 +120,14 @@ with col2:
                 file_name=file_path.name,
                 mime="application/octet-stream"
             )
+    with st.expander("⚠️ Dangerous Actions", expanded=False):
+        if st.button("🗑️ Delete ALL ADC files"):
+            try:
+                deleted = 0
+                for f in ADC_DATA_DIR.glob("*.bin"):
+                    f.unlink()
+                    deleted += 1
+                st.success(f"Deleted {deleted} ADC file(s).")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to delete files: {e}")

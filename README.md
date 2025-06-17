@@ -12,10 +12,16 @@ This project is a **LAN VLP device monitoring system** with a web-based frontend
 - VLC communication log: shows all messages sent to the server
 - Manual clear button for VLC logs
 - Clean separation of frontend and backend with REST APIs
+- `POST /stream_adc`: Upload binary ADC data chunks (DMA streams)
+- Per-device file write with safe concurrency
+- Streamlit UI to:
+  - 📄 List available `.bin` files
+  - ⬇️ Download files
+  - ❌ Delete individual or all ADC files
 
 ## WIP features:
 
-- [] Add a streaming API to store raw adc data to file. Support concurrency write multiple file.
+- [x] Add a streaming API to store raw adc data to file. Support concurrency write multiple file.
 - [] Show target moving trajectory.
 - [] Use different color to represent different targets.
 - [] Add an interface to set the position of anchors.
@@ -129,6 +135,14 @@ Clears all VLC messages in the system.
 
 ```bash
 curl http://localhost:8000/get_all_devices
+```
+
+### 🧪 Test ADC Upload
+
+```bash
+curl -X POST http://localhost:8000/stream_adc \
+  -F "device_id=test_device" \
+  -F "chunk=@sample_chunk.bin"
 ```
 
 ---
